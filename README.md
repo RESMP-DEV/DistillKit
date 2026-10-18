@@ -46,6 +46,28 @@ For most users, we recommend starting with the pre-captured teacher datasets we 
 
 ## Quick Start
 
+### Architecture preflight
+
+For a same-family run, add an architecture guard. DistillKit refuses to load
+the student if either model family or model vocabulary differs from the target;
+for an online teacher, it also refuses mismatched student and teacher
+tokenizers. The guard writes `architecture_guard.json` beside the trained model.
+
+```yaml
+architecture_guard:
+  target_family: qwen3_5
+  expected_model_vocab_size: 248320
+```
+
+The same check is available directly:
+
+```bash
+distillkit-preflight --student Qwen/Qwen3.5-0.8B \
+  --teacher Qwen/Qwen3.5-4B \
+  --target-family qwen3_5 \
+  --expected-model-vocab-size 248320
+```
+
 ### Offline Distillation
 
 Train a student model using pre-captured teacher outputs:

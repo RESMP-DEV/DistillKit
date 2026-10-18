@@ -115,6 +115,15 @@ class DatasetConfiguration(BaseModel):
     )
 
 
+class ArchitectureGuardConfig(BaseModel):
+    target_family: str = Field(
+        description="Required student and teacher architecture family.",
+    )
+    expected_model_vocab_size: int = Field(
+        description="Required model embedding vocabulary size.",
+    )
+
+
 class TeacherModelConfig(BaseModel):
     kind: Literal["hf"] = "hf"
 
@@ -148,6 +157,10 @@ class DistillationRunConfig(BaseModel):
     dataset: DatasetConfiguration
     teacher: TeacherModelConfig | TeacherDatasetConfig = Field(
         ..., discriminator="kind"
+    )
+    architecture_guard: ArchitectureGuardConfig | None = Field(
+        default=None,
+        description="Optional hard gate for model family and tokenizer compatibility.",
     )
     sequence_length: int = Field(
         description="Sequence length for training.",

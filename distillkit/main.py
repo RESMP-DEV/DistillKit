@@ -26,6 +26,7 @@ from distillkit.configuration import (
 )
 from distillkit.hsd_mapping import HiddenStateMapping
 from distillkit.monkey_patch_packing import monkey_patch_packing_for_model
+from distillkit.preflight import verify_pair
 from distillkit.signals import OfflineSignalSource, OnlineSignalSource, SignalSource
 from distillkit.trainer import DistillationTrainer
 
@@ -211,14 +212,13 @@ def load_student_model(
     LOG.info("Loaded model.")
 
     model_vocab_size = model.get_input_embeddings().weight.shape[0]
-    if (
-        model_vocab_size != tokenizer_vocab_size
-        or config.resize_embeddings_to_multiple_of
-    ):
-        model.resize_token_embeddings(
-            tokenizer_vocab_size,
-            pad_to_multiple_of=config.resize_embeddings_to_multiple_of,
-        )
+    target_vocab_size = max(model_vocab_size, tokenizer_vocab_size)
+    if config.resize_embeddings_to_multiple_of:
+        remainder = target_vocab_size % config.resize_embeddings_to_multiple_of
+        if remainder:
+            target_vocab_size += config.resize_embeddings_to_multiple_of - remainder
+    if target_vocab_size != model_vocab_size:
+        model.resize_token_embeddings(target_vocab_size)
         new_model_vocab_size = model.get_input_embeddings().weight.shape[0]
         if new_model_vocab_size != model_vocab_size:
             LOG.info(
@@ -310,6 +310,23 @@ def do_distill(config: DistillationRunConfig, config_source: str | None = None):
             len(tokenizer.get_vocab()),
             max(tokenizer.get_vocab().values()) + 1,
         )
+
+    if config.architecture_guard is not None:
+        teacher_path = (
+            config.teacher.path
+            if isinstance(config.teacher, TeacherModelConfig)
+            else None
+        )
+        guard_report = verify_pair(
+            student_path=config.train_model,
+            teacher_path=teacher_path,
+            target_family=config.architecture_guard.target_family,
+            expected_model_vocab_size=config.architecture_guard.expected_model_vocab_size,
+        )
+        guard_output = os.path.join(config.output_path, "architecture_guard.json")
+        with open(guard_output, "w", encoding="utf-8") as handle:
+            json.dump(guard_report, handle, indent=2)
+            handle.write("\n")
 
     model = load_student_model(config, tokenizer_vocab_size)
 
